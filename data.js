@@ -13,6 +13,9 @@ const SEED_FOODS = [
   ['chorizo', 455, 24, 0, 20, 'loncha', 'chorizo'],
   ['salchichón', 400, 22, 0, 20, 'loncha', 'salchichon'],
   ['queso curado', 400, 26, 0, 30, 'loncha', 'queso curado', 'manchego'],
+  ['queso semicurado', 350, 23, 0, 30, 'porción', 'queso semicurado', 'gouda', 'emmental'],
+  ['queso azul', 350, 21, 0, 30, 'porción', 'queso azul', 'roquefort', 'cabrales', 'azul'],
+  ['queso rallado', 380, 25, 0, 20, 'cucharada', 'queso rallado', 'rallado'],
   ['queso de untar', 250, 6, 0, 15, 'cucharada', 'queso untar', 'filadelfia'],
   ['mantequilla', 717, 0.9, 0, 10, 'porción', 'mantequilla'],
   ['mermelada', 250, 0.4, 1, 20, 'cucharada', 'mermelada', 'confitura'],
@@ -209,6 +212,9 @@ function matchFood(query, items) {
       if (!hits) continue;
       const coverage = hits / sig.length;
       score = (score + coverage * 3) / Math.sqrt(nTok.length + 1);
+      // si el nombre completo del alimento aparece tal cual en el texto, es ESE
+      // (evita que un alias genérico como "pan" gane a "pan de molde")
+      if (n === it.name && qStr.includes(' ' + nTok.join(' ') + ' ')) score += 4;
       if (score > bestScore) { bestScore = score; best = it; }
     }
   }

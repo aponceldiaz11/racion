@@ -90,3 +90,28 @@ for (const t of tests) {
   console.log(`${t}\n   -> ` + out.map(r => `${r.name} ${r.grams}g [${r.how}] ${Math.round(r.kcal100 * r.grams / 100)} kcal`).join(' + ') + `\n   = ${Math.round(kcal)} kcal`);
 }
 console.log(sinKcal === 0 ? '\nOK: ninguna entrada sin kcal' : `\nFALLAN ${sinKcal}`);
+
+/* ---- corrección del nombre dentro de la hoja (resolveName de app.js) ---- */
+function resolveName(text) {
+  const hit = matchFood(text, items);
+  if (hit) return { name: hit.item.name, kcal100: hit.item.kcal100, unitGrams: hit.item.grams, est: false };
+  const e = estimateFood(text);
+  return { name: e.name || String(text).slice(0, 50), kcal100: e.kcal100, unitGrams: e.unitGrams, est: true };
+}
+
+const renames = [
+  ['jamón', 'jamón cocido', 107],
+  ['queso', 'queso curado', 400],
+  ['tomate', 'tomate frito', 80],
+  ['pan', 'pan de molde', 265],
+  ['inventado', 'queso azul', 350],
+  ['xxx', 'comida rara sin categoria', 180]
+];
+let bad = 0;
+for (const [from, to, want] of renames) {
+  const r = resolveName(to);
+  const ok = r.kcal100 === want;
+  if (!ok) bad++;
+  console.log(`  "${from}" -> "${to}": ${r.name} ${r.kcal100} kcal/100 [${r.est ? 'est' : 'base'}] ${ok ? 'OK' : 'ESPERABA ' + want}`);
+}
+console.log(bad === 0 ? 'OK renombrado' : `FALLAN ${bad} renombrados`);

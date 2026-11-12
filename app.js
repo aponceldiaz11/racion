@@ -376,6 +376,7 @@ function gramsFrom(chunk, item) {
 const toProposal = (hit, chunk) => ({
   name: hit.item.name, grams: gramsFrom(chunk, hit.item),
   kcal100: hit.item.kcal100, prot100: hit.item.prot100, fib100: hit.item.fib100,
+  unitGrams: hit.item.grams,
   source: hit.item.source === 'off' ? 'off' : 'mem'
 });
 
@@ -405,6 +406,23 @@ function unknownPart(chunk) {
   };
 }
 
+/* Resuelve un nombre escrito a mano en la hoja: base de datos primero, estimación después. */
+function resolveName(text) {
+  const hit = matchFood(text, S.items);
+  if (hit) {
+    return {
+      name: hit.item.name, kcal100: hit.item.kcal100, prot100: hit.item.prot100,
+      fib100: hit.item.fib100, unitGrams: hit.item.grams,
+      source: hit.item.source === 'off' ? 'off' : 'mem', est: false, unknown: false
+    };
+  }
+  const e = estimateFood(text);
+  return {
+    name: e.name || String(text).slice(0, 50), kcal100: e.kcal100, prot100: e.prot100,
+    fib100: e.fib100, unitGrams: e.unitGrams, source: 'est', est: true, unknown: false
+  };
+}
+
 /* Nunca dejar un alimento sin kcal: si no está en la base, se estima por categoría. */
 function estProposal(chunk) {
   const e = estimateFood(chunk);
@@ -412,6 +430,7 @@ function estProposal(chunk) {
     name: e.name || 'alimento',
     grams: gramsFrom(chunk, { grams: e.unitGrams || 100 }),
     kcal100: e.kcal100, prot100: e.prot100, fib100: e.fib100,
+    unitGrams: e.unitGrams,
     source: 'est', est: true
   };
 }
@@ -461,16 +480,20 @@ function addProposalSheet(items) {
   const sheet = $('#sheet');
   sheet.innerHTML = `
     <h3>Confirmar</h3>
-    <p class="hint">Ajusta gramos si hace falta: lo apuntado se aprende para la próxima.</p>
+    <p class="hint">Corrige el nombre si no es ese alimento, o los gramos. Lo corregido se aprende para la próxima.</p>
     <div class="type" id="typeRow">${MEALS.map(([k, l]) => `<button data-type="${k}" class="${k === S.tipo ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div id="sheetItems"></div>
     <input class="search" id="platoName" placeholder="Guardar como plato (opcional: «desayuno de siempre»)" autocomplete="off">
     <div class="row"><button class="btn ghost" id="sheetCancel">Cancelar</button><button class="btn" id="sheetOk">Añadir</button></div>`;
+  const badgeFor = i => i.source === 'ia' ? ' <span class="src ia">IA</span>'
+    : i.source === 'off' ? ' <span class="src off">OFF</span>'
+    : i.est ? ' <span class="src est">≈ est</span>' : '';
   const paint = () => {
     $('#sheetItems').innerHTML = sheetItems.map((i, ix) => `
       <div class="itm">
-        <div class="nm">${escapeHtml(i.name)}${i.source === 'ia' ? ' <span class="src ia">IA</span>' : i.source === 'off' ? ' <span class="src off">OFF</span>' : i.est ? ' <span class="src est">≈ est</span>' : ''}
-          <div><span class="u">${i.kcal100 ? i.kcal100 + ' kcal/100 g' : 'sin datos — pon kcal'}</span></div>
+        <div class="nm">
+          <input class="nmEdit" data-n="${ix}" value="${escapeHtml(i.name)}" autocomplete="off" spellcheck="false">
+          <div><span class="u" data-u="${ix}">${i.kcal100 ? i.kcal100 + ' kcal/100 g' : 'sin datos — pon kcal'}</span><span data-b="${ix}">${badgeFor(i)}</span></div>
         </div>
         <input type="number" inputmode="numeric" value="${round(i.grams)}" data-g="${ix}">
         <span class="u">g</span>
@@ -478,6 +501,29 @@ function addProposalSheet(items) {
       </div>`).join('');
     $('#sheetItems').querySelectorAll('[data-g]').forEach(inp => inp.onchange = () => {
       sheetItems[Number(inp.dataset.g)].grams = Math.max(1, Number(inp.value) || 1);
+    });
+    // Corregir el nombre de un alimento sin salir de la hoja
+    $('#sheetItems').querySelectorAll('[data-n]').forEach(inp => {
+      inp.onchange = () => {
+        const ix = Number(inp.dataset.n);
+        const txt = inp.value.trim();
+        if (!txt) { inp.value = sheetItems[ix].name; return; }
+        const old = sheetItems[ix];
+        const r = resolveName(txt);
+        // si el gramaje era "una unidad" del alimento anterior, se ajusta a la unidad nueva
+        const wasOneUnit = old.unitGrams && Math.abs(old.grams - old.unitGrams) < 1;
+        Object.assign(old, r);
+        if (wasOneUnit) {
+          old.grams = r.unitGrams || old.grams;
+          const gInp = $(`#sheetItems [data-g="${ix}"]`);
+          if (gInp) gInp.value = round(old.grams);
+        }
+        inp.value = old.name;
+        const u = $(`#sheetItems [data-u="${ix}"]`);
+        if (u) u.textContent = old.kcal100 ? old.kcal100 + ' kcal/100 g' : 'sin datos — pon kcal';
+        const b = $(`#sheetItems [data-b="${ix}"]`);
+        if (b) b.innerHTML = badgeFor(old);
+      };
     });
     $('#sheetItems').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
       sheetItems.splice(Number(b.dataset.rm), 1);
