@@ -696,7 +696,7 @@ function copyMealSheet(ids) {
   const sheet = $('#sheet');
   sheet.innerHTML = `
     <h3>Copiar comida</h3>
-    <p class="hint">${list.length} alimento(s) · ${round(t.kcal)} kcal. Elige a quién se la apunto igual.</p>
+    <p class="hint">${list.length} alimento${list.length === 1 ? '' : 's'} · ${round(t.kcal)} kcal. Marca a quién se lo apunto también.</p>
     <div class="who" id="cpyWho">${others.map(p => `<button data-cp="${p.id}">${escapeHtml(p.name)}</button>`).join('')}</div>
     <div class="row"><button class="btn ghost" id="cpyCancel">Cancelar</button><button class="btn" id="cpyOk">Copiar</button></div>`;
   $('#cpyWho').querySelectorAll('[data-cp]').forEach(b => b.onclick = () => b.classList.toggle('on'));

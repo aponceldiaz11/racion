@@ -1,5 +1,5 @@
 /* Ración — service worker: abre sin red, actualiza cuando hay red. */
-const CACHE = 'racion-v8';
+const CACHE = 'racion-v9';
 const SHELL = [
   './', './index.html', './styles.css', './data.js', './ai.js', './app.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'
