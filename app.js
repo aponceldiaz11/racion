@@ -43,9 +43,12 @@ async function boot() {
 
 async function ensureSeed() {
   const items = await db.all('items');
-  if (items.length) return;
+  // Aditivo: añade los alimentos nuevos de la base sin tocar los que ya existen
+  // (así una actualización trae alimentos nuevos a un móvil que ya tiene diario).
+  const known = new Set(items.map(i => norm(i.name)));
   for (const f of SEED_FOODS) {
     const [name, kcal100, prot100, fib100, grams, unit, ...aliases] = f;
+    if (known.has(norm(name))) continue;
     await db.put('items', { name, kcal100, prot100, fib100, grams, unit, aliases, source: 'seed', times: 0, last: 0 });
   }
 }
@@ -386,19 +389,30 @@ function resolveChunk(chunk) {
       const a = matchFood(parts[0], S.items), b = matchFood(parts[1], S.items);
       const okA = a && a.score >= 1.2, okB = b && b.score >= 1.2;
       if (okA && okB && a.item.id !== b.item.id) return [toProposal(a, parts[0]), toProposal(b, parts[1])];
-      // si solo une de las dos se reconoce, la otra NO se pierde: va como desconocida
-      if (okA && !okB) return [toProposal(a, parts[0]), unknownPart(parts[1])];
-      if (okB && !okA) return [toProposal(b, parts[1]), unknownPart(parts[0])];
+      // si solo una de las dos se reconoce, la otra se estima (nunca se pierde)
+      if (okA && !okB) return [toProposal(a, parts[0]), estProposal(parts[1])];
+      if (okB && !okA) return [toProposal(b, parts[1]), estProposal(parts[0])];
     }
   }
   if (whole) return [toProposal(whole, chunk)];
-  return [unknownPart(chunk)];
+  return [estProposal(chunk)];
 }
 
 function unknownPart(chunk) {
   return {
     name: norm(chunk).replace(/^\d+\s*\w*\s*(de\s*)?/, '').slice(0, 50) || String(chunk).slice(0, 50),
     grams: 100, kcal100: 0, prot100: 0, fib100: 0, source: 'manual', unknown: true
+  };
+}
+
+/* Nunca dejar un alimento sin kcal: si no está en la base, se estima por categoría. */
+function estProposal(chunk) {
+  const e = estimateFood(chunk);
+  return {
+    name: e.name || 'alimento',
+    grams: gramsFrom(chunk, { grams: e.unitGrams || 100 }),
+    kcal100: e.kcal100, prot100: e.prot100, fib100: e.fib100,
+    source: 'est', est: true
   };
 }
 
@@ -416,15 +430,14 @@ async function submitText(raw) {
   if (looksLikeBarcode(text)) return addByBarcode(text);
 
   const local = parseLocal(text);
-  const unresolved = local.filter(x => x.unknown);
+  const needsAi = local.some(x => x.est || x.unknown || !x.kcal100);
   const hasKey = !!aiKey();
 
-  if (!unresolved.length) return addProposalSheet(local);
+  // Todo resuelto por la base: no hace falta IA
+  if (!needsAi) return addProposalSheet(local);
 
-  if (!hasKey) {
-    toast('No reconozco todo · añade la IA en Ajustes o corrige los gramos');
-    return addProposalSheet(local);
-  }
+  // Sin clave: se registra igual con la estimación local (marcada como ≈)
+  if (!hasKey) return addProposalSheet(local);
 
   $('#inp').value = ' lo estoy pensando…';
   try {
@@ -456,7 +469,7 @@ function addProposalSheet(items) {
   const paint = () => {
     $('#sheetItems').innerHTML = sheetItems.map((i, ix) => `
       <div class="itm">
-        <div class="nm">${escapeHtml(i.name)}${i.source === 'ia' ? ' <span class="src ia">IA</span>' : i.source === 'off' ? ' <span class="src off">OFF</span>' : ''}
+        <div class="nm">${escapeHtml(i.name)}${i.source === 'ia' ? ' <span class="src ia">IA</span>' : i.source === 'off' ? ' <span class="src off">OFF</span>' : i.est ? ' <span class="src est">≈ est</span>' : ''}
           <div><span class="u">${i.kcal100 ? i.kcal100 + ' kcal/100 g' : 'sin datos — pon kcal'}</span></div>
         </div>
         <input type="number" inputmode="numeric" value="${round(i.grams)}" data-g="${ix}">

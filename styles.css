@@ -146,6 +146,7 @@ main::-webkit-scrollbar{width:0}
 .src.off{background:var(--green-soft);color:var(--green)}
 .src.ia{background:var(--amber-soft);color:#A8701B}
 .src.mem{background:#EAF0FB;color:#3F5C96}
+.src.est{background:#F5F0E3;color:#8A7440}
 
 /* forms */
 .form{display:flex;flex-direction:column;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px}

@@ -7,6 +7,23 @@ const SEED_FOODS = [
   ['pechuga de pollo', 165, 31, 0, 150, 'ración', 'pollo', 'pechuga', 'pollo a la plancha'],
   ['muslo de pollo', 209, 26, 0, 120, 'ración', 'muslo', 'pollo'],
   ['fiambre de pavo', 100, 18, 0, 40, 'loncha', 'pavo', 'pavo fiambre'],
+  ['jamón serrano', 241, 31, 0, 22, 'loncha', 'jamon', 'jamón', 'jamon serrano'],
+  ['jamón cocido', 107, 18, 0, 25, 'loncha', 'jamon cocido', 'jamon york', 'jamon dulce'],
+  ['jamón ibérico', 375, 25, 0, 22, 'loncha', 'iberico', 'jamon iberico'],
+  ['chorizo', 455, 24, 0, 20, 'loncha', 'chorizo'],
+  ['salchichón', 400, 22, 0, 20, 'loncha', 'salchichon'],
+  ['queso curado', 400, 26, 0, 30, 'loncha', 'queso curado', 'manchego'],
+  ['queso de untar', 250, 6, 0, 15, 'cucharada', 'queso untar', 'filadelfia'],
+  ['mantequilla', 717, 0.9, 0, 10, 'porción', 'mantequilla'],
+  ['mermelada', 250, 0.4, 1, 20, 'cucharada', 'mermelada', 'confitura'],
+  ['cereales de desayuno', 380, 8, 4, 40, 'ración', 'cereales', 'corn flakes', 'muesli', 'granola'],
+  ['pan de molde', 265, 9, 2.5, 28, 'rebanada', 'pan de molde', 'pan bimbo'],
+  ['tortilla francesa', 190, 12, 0, 120, 'ración', 'tortilla francesa'],
+  ['leche entera', 61, 3.2, 0, 200, 'vaso', 'leche entera'],
+  ['zumo de naranja', 45, 0.7, 0.2, 200, 'vaso', 'zumo', 'zumo de naranja'],
+  ['magdalenas', 450, 6, 1, 30, 'unidad', 'magdalena', 'magdalenas', 'bizcocho'],
+  ['aceitunas', 145, 1, 3, 30, 'ración', 'aceitunas', 'olivas'],
+  ['tomate frito', 80, 1.5, 1, 30, 'cucharada', 'tomate frito'],
   ['ternera magra', 187, 26, 0, 120, 'ración', 'ternera', 'carne'],
   ['lomo de cerdo', 143, 21, 0, 120, 'ración', 'cerdo', 'lomo'],
   ['merluza', 90, 17, 0, 150, 'ración', 'pescado', 'merluza'],
@@ -27,7 +44,8 @@ const SEED_FOODS = [
   ['pasta cocida', 158, 5.8, 1.8, 100, 'ración', 'pasta', 'macarrones', 'espaguetis'],
   ['pan integral', 230, 9, 6, 30, 'rebanada', 'pan', 'pan integral'],
   ['pan blanco', 265, 8, 2.5, 30, 'rebanada', 'pan blanco'],
-  ['tostada integral', 380, 12, 7, 8, 'tostada', 'tostada', 'tostadas', 'biscote'],
+  ['tostada integral', 265, 9, 6, 30, 'rebanada', 'tostada', 'tostadas', 'pan tostado'],
+  ['biscote', 380, 12, 7, 8, 'biscote', 'biscotes'],
   ['avena', 380, 13, 10, 40, 'ración', 'avena', 'copos de avena'],
   ['maíz dulce', 86, 3.2, 2.7, 80, 'ración', 'maiz'],
   ['patata cocida', 87, 2, 2, 150, 'ración', 'patata', 'patatas'],
@@ -53,7 +71,7 @@ const SEED_FOODS = [
   ['alcachofa', 47, 3.3, 5.4, 120, 'unidad', 'alcachofa', 'alcachofas'],
   ['espárragos', 20, 2.2, 2, 100, 'ración', 'esparragos'],
   ['ensalada mixta', 30, 1.2, 1.5, 200, 'plato', 'ensalada', 'ensalada grande', 'ensalada mixta'],
-  ['aguacate', 160, 2, 6.7, 50, 'medio', 'aguacate'],
+  ['aguacate', 160, 2, 6.7, 150, 'unidad', 'aguacate'],
   ['aceite de oliva', 884, 0, 0, 10, 'cucharada', 'aceite', 'aove'],
   ['almendras', 579, 21, 12.5, 20, 'puñado', 'almendras', 'frutos secos'],
   ['nueces', 654, 15, 6.7, 20, 'puñado', 'nueces'],
@@ -195,4 +213,68 @@ function matchFood(query, items) {
     }
   }
   return bestScore >= 1.2 ? { item: best, score: bestScore } : null;
+}
+
+/* ---------- estimador: nunca decir "no sé" ----------
+   Cuando un alimento no está en la base, se infiere por categoría con valores
+   medios de composición y una ración típica. Devuelve `est: true` para que la UI
+   lo marque como estimado (y el usuario pueda corregir gramos, que se aprende).
+   El orden importa: lo más específico primero. */
+const EST_RULES = [
+  [/jamon (serrano|iberico)|iberico/, 'jamón serrano', 250, 30, 0, 22, 'loncha'],
+  [/jamon (cocido|york|dulce)/, 'jamón cocido', 107, 18, 0, 25, 'loncha'],
+  [/jamon/, 'jamón', 160, 25, 0, 25, 'loncha'],
+  [/chorizo|salchichon|fuet|sobrasada|morcilla|embutido|cecina|lomo embuchado/, 'embutido', 420, 22, 0, 20, 'loncha'],
+  [/mortadela|salchicha|butifarra|burger meat/, 'embutido', 300, 15, 0, 25, 'loncha'],
+  [/pate|foie/, 'paté', 320, 12, 0, 20, 'porción'],
+  [/queso (curado|manchego|viejo|parmesano)/, 'queso curado', 400, 26, 0, 30, 'loncha'],
+  [/queso (rallado|semicurado|gouda|emmental|azul|roquefort)/, 'queso semicurado', 350, 23, 0, 30, 'porción'],
+  [/queso (untar|crema|philadelphia|batido)/, 'queso de untar', 250, 6, 0, 15, 'cucharada'],
+  [/queso/, 'queso', 300, 20, 0, 40, 'porción'],
+  [/mantequilla|margarina/, 'mantequilla', 717, 1, 0, 10, 'porción'],
+  [/mermelada|confitura|miel|sirope|azucar|sacarina/, 'mermelada', 260, 0.5, 1, 20, 'cucharada'],
+  [/cereal|copos de maiz|corn flakes|muesli|granola|avena/, 'cereales', 380, 8, 4, 40, 'ración'],
+  [/magdalena|bizcocho|bollo|dona|donut|tarta|pastel|galleta|croissant|cruasan|napolitana/, 'bollería', 430, 6, 1, 40, 'unidad'],
+  [/tortilla francesa/, 'tortilla francesa', 190, 12, 0, 120, 'ración'],
+  [/tortilla/, 'tortilla de patatas', 190, 7, 1.5, 150, 'ración'],
+  [/patatas? fritas|chips/, 'patatas fritas', 500, 6, 4, 30, 'ración'],
+  [/pizza/, 'pizza', 266, 11, 2, 200, 'ración'],
+  [/hamburguesa|burger|san ?jacobo|bocadillo/, 'hamburguesa', 250, 15, 1, 180, 'unidad'],
+  [/pasta|macarron|espagueti|fideo|noquis|lasana|canelones/, 'pasta', 158, 6, 2, 180, 'plato'],
+  [/arroz|paella|risotto|cous ?cous/, 'arroz', 140, 3, 1, 180, 'plato'],
+  [/lenteja|garbanzo|alubia|judia blanca|legumbre|potaje|cocido|fabada/, 'legumbres', 130, 8, 7, 200, 'plato'],
+  [/sopa|crema|caldo|gazpacho|pure/, 'sopa', 45, 1.5, 1.5, 300, 'plato'],
+  [/pollo|pavo|pechuga/, 'pollo', 165, 31, 0, 150, 'ración'],
+  [/ternera|vacuno|buey|cerdo|lomo|chuleta|costilla|carne|conejo|pato|cordero/, 'carne', 220, 24, 0, 130, 'ración'],
+  [/salmon|merluza|atun|pescado|bacalao|dorada|lubina|gamba|marisco|calamar|pulpo|sardina/, 'pescado', 150, 20, 0, 140, 'ración'],
+  [/huevo/, 'huevo', 143, 13, 0, 55, 'unidad'],
+  [/yogur|skyr|kefir|requeson|cuajada/, 'yogur', 70, 6, 0, 125, 'unidad'],
+  [/leche|batido/, 'leche', 50, 3.2, 0, 200, 'vaso'],
+  [/zumo/, 'zumo', 45, 0.5, 0.2, 200, 'vaso'],
+  [/refresco|cola|cerveza|birra|vino|copa|cana|alcohol|gin|whisky|ron/, 'bebida', 45, 0.5, 0, 330, 'unidad'],
+  [/frutos secos|nueces|almendras|pistacho|avellana|cacahuete|anacardo/, 'frutos secos', 600, 20, 9, 25, 'puñado'],
+  [/fruta|manzana|platano|naranja|pera|uvas|melocoton|fresa|kiwi|sandia|melon|pina|mandarina|arandano|ciruela|higo/, 'fruta', 55, 0.8, 2, 150, 'ración'],
+  [/ensalada|verdura|verduras|brocoli|calabacin|judia verde|esparrago|lechuga|tomate|pimiento|zanahoria|cebolla|champinon|berenjena/, 'verdura', 30, 1.5, 2, 150, 'ración'],
+  [/salsa|mayonesa|ketchup|alioli|mostaza|vinagreta/, 'salsa', 300, 1, 0, 15, 'cucharada'],
+  [/aceite|aove|oliva/, 'aceite', 884, 0, 0, 10, 'cucharada'],
+  [/chocolate|cacao|bombon|helado|dulce|flan|natilla/, 'dulce', 500, 6, 3, 20, 'porción'],
+  [/pan|tostada|biscote/, 'pan', 250, 9, 3, 40, 'ración']
+];
+const EST_FALLBACK = ['alimento', 180, 8, 1, 120, 'ración'];
+
+function estimateFood(chunk) {
+  const q = norm(chunk);
+  let rule = null;
+  for (const r of EST_RULES) { if (r[0].test(q)) { rule = r; break; } }
+  const [, label, kcal, prot, fib, unitG, unit] = rule || [null, ...EST_FALLBACK];
+  // nombre: quitar cantidad, unidad y "de" (conservando tildes para mostrarlo)
+  const clean = String(chunk).toLowerCase()
+    .replace(/\b\d+([.,]\d+)?\b/g, ' ')
+    .replace(/\b(un|una|uno|dos|tres|cuatro|cinco|seis|siete|medio|media)\b/gi, ' ')
+    .replace(/\b(kg|kilos?|kilogramos?|g|gr|gramos?|ml|cl|l|litros?|unidades?|uds?|lonchas?|rebanadas?|cucharadas?|cazos?|vasos?|tazas?|latas?|porciones?|puñados?|puñado)\b/gi, ' ')
+    .replace(/\bde\b/gi, ' ').replace(/\s+/g, ' ').trim();
+  return {
+    name: (clean || label).slice(0, 50), kcal100: kcal, prot100: prot, fib100: fib,
+    unitGrams: unitG, unit, est: true
+  };
 }
