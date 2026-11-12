@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Ración</title>
+<meta name="theme-color" content="#F6F3EC">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ración">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar">
+    <div class="profiles" id="profiles"></div>
+    <div class="topdate" id="topdate"></div>
+  </header>
+
+  <main id="main">
+
+    <!-- ============ HOY ============ -->
+    <section class="screen active" data-screen="hoy">
+      <div class="hero card" id="hero">
+        <div class="ring">
+          <svg viewBox="0 0 118 118" width="118" height="118">
+            <circle cx="59" cy="59" r="50" fill="none" stroke="#EFEBE1" stroke-width="11"/>
+            <circle id="arc" cx="59" cy="59" r="50" fill="none" stroke="#E0952B" stroke-width="11"
+                    stroke-linecap="round" stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+          </svg>
+          <div class="ringval"><div class="num" id="rest">—</div><div class="lbl">kcal libres</div></div>
+        </div>
+        <div class="heroinfo">
+          <div class="row"><span>Objetivo</span><span id="hObj">—</span></div>
+          <div class="row"><span>Comido</span><span id="hEat">—</span></div>
+          <div class="row"><span>Volumen</span><span><span id="hDens">—</span> g/100 kcal</span></div>
+          <div class="row"><span>Estado</span><span><span class="chip" id="hState">—</span></span></div>
+        </div>
+      </div>
+
+      <div class="macros">
+        <div class="macro"><b id="mProt">—</b><i>proteína</i></div>
+        <div class="macro"><b id="mFib">—</b><i>fibra</i></div>
+        <div class="macro"><b id="mG">—</b><i>gramos hoy</i></div>
+      </div>
+
+      <div class="sechead"><h2>Hoy</h2><span id="nLog">0 registros</span></div>
+      <div id="meals"></div>
+
+      <div class="suggest" id="suggest" hidden>
+        <div class="lbl">Cena que te cabe</div>
+        <div class="txt" id="sugTxt"></div>
+        <div class="meta" id="sugMeta"></div>
+      </div>
+
+      <div class="quick" id="quick"></div>
+    </section>
+
+    <!-- ============ SEMANA ============ -->
+    <section class="screen" data-screen="semana">
+      <h1>Últimos 7 días</h1>
+      <p class="sub" id="weekSub">—</p>
+      <div class="chart card">
+        <div class="bars" id="bars"></div>
+      </div>
+      <div class="kpis" id="weekKpis"></div>
+      <p class="note" id="weekNote"></p>
+    </section>
+
+    <!-- ============ MEMORIA ============ -->
+    <section class="screen" data-screen="memoria">
+      <h1>Lo que ya sabe</h1>
+      <p class="sub">Cuanto más lo usas, menos teclear. Todo esto entra con un toque.</p>
+      <input class="search" id="memSearch" placeholder="Buscar alimento o plato…" autocomplete="off">
+      <div id="memResults"></div>
+      <div class="sechead"><h2>Platos y habituales</h2><span id="memCount"></span></div>
+      <div id="habits"></div>
+      <div class="sechead"><h2>Alimentos conocidos</h2><span id="foodCount"></span></div>
+      <div id="foodsKnown"></div>
+    </section>
+
+    <!-- ============ AJUSTES ============ -->
+    <section class="screen" data-screen="ajustes">
+      <h1>Ajustes</h1>
+
+      <div class="sechead"><h2>Perfil</h2><span id="setProfName"></span></div>
+      <div class="form">
+        <label>Objetivo diario (kcal)<input type="number" id="setTarget" inputmode="numeric"></label>
+        <label>Proteína objetivo (g)<input type="number" id="setProt" inputmode="numeric"></label>
+        <label>Fibra objetivo (g)<input type="number" id="setFib" inputmode="numeric"></label>
+        <button class="btn" id="saveProfile">Guardar</button>
+        <button class="btn ghost" id="addProfile">Añadir otra persona</button>
+      </div>
+
+      <div class="sechead"><h2>IA gratuita (opcional)</h2><span>OpenRouter</span></div>
+      <div class="form">
+        <label>Clave de OpenRouter<input type="password" id="setKey" placeholder="sk-or-v1-…" autocomplete="off"></label>
+        <p class="note">La clave se queda en este dispositivo. Sin clave la app sigue funcionando: memoria, código de barras y entrada manual.</p>
+        <label>Modelos free (uno por línea)<textarea id="setModels" rows="4"></textarea></label>
+        <button class="btn" id="saveKey">Guardar</button>
+        <button class="btn ghost" id="testKey">Probar IA</button>
+      </div>
+
+      <div class="sechead"><h2>Datos</h2><span>solo en este móvil</span></div>
+      <div class="form">
+        <button class="btn ghost" id="exportCsv">Exportar CSV</button>
+        <button class="btn ghost" id="exportJson">Exportar copia JSON</button>
+        <button class="btn danger" id="wipe">Borrar todo</button>
+      </div>
+      <p class="note">Sin cuenta, sin nube. Si cambias de móvil, usa la copia JSON.</p>
+    </section>
+
+  </main>
+
+  <div class="composer" id="composer">
+    <div class="chips" id="chips"></div>
+    <div class="field">
+      <input id="inp" placeholder="Di o escribe qué has comido…" autocomplete="off" enterkeyhint="send">
+      <button class="mic" id="mic" title="Dictar">🎙</button>
+      <button class="go" id="go">→</button>
+    </div>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="hoy" class="on"><span class="ic">◎</span>Hoy</button>
+    <button data-tab="semana"><span class="ic">▤</span>Semana</button>
+    <button data-tab="memoria"><span class="ic">✦</span>Memoria</button>
+    <button data-tab="ajustes"><span class="ic">⚙</span>Ajustes</button>
+  </nav>
+</div>
+
+<!-- hoja inferior para confirmar / editar -->
+<div class="sheetwrap" id="sheetwrap">
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<!-- onboarding -->
+<div class="onbwrap" id="onbwrap">
+  <div class="onb">
+    <div class="logo">ración</div>
+    <p class="lead">Cuéntame lo mínimo para calcular tu objetivo. Sin cuenta, sin nube.</p>
+    <div class="form" id="onbForm">
+      <label>Tu nombre<input id="onbName" placeholder="Laura" autocomplete="given-name"></label>
+      <div class="two">
+        <label>Sexo<select id="onbSex"><option value="f">Mujer</option><option value="m">Hombre</option></select></label>
+        <label>Edad<input type="number" id="onbAge" inputmode="numeric" placeholder="34"></label>
+      </div>
+      <div class="two">
+        <label>Altura (cm)<input type="number" id="onbHeight" inputmode="numeric" placeholder="168"></label>
+        <label>Peso (kg)<input type="number" id="onbWeight" inputmode="numeric" placeholder="68"></label>
+      </div>
+      <label>Objetivo diario (kcal)<input type="number" id="onbTarget" inputmode="numeric" placeholder="1500"></label>
+      <p class="note" id="onbHint">Calculo un déficit moderado. Puedes cambiarlo cuando quieras.</p>
+      <button class="btn" id="onbGo">Empezar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script src="ai.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
