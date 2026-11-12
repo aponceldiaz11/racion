@@ -28,6 +28,21 @@ docs/PRODUCT.md       spec: decisiones, alcance, criterios de aceptación
 mockup.html           mockup navegable previo (referencia visual)
 ```
 
+## Publicar
+
+El repo es **privado**. GitHub Pages no sirve repos privados en el plan gratuito, así que el sitio se publica con un hosting estático que sube la carpeta tal cual:
+
+```bash
+# Vercel (gratis, y el repo sigue privado)
+npx vercel login          # una vez
+npx vercel --prod         # devuelve la URL fija del proyecto
+
+# o Cloudflare Pages
+npx wrangler pages deploy . --project-name racion
+```
+
+Al desplegar, copia la URL resultante en el móvil y añádela a la pantalla de inicio.
+
 ## Privacidad
 
 No hay backend. Nada de lo que registras sale del dispositivo, salvo el texto que envías al modelo cuando usas la IA (solo si has puesto tu clave), y el código de barras que consultas a Open Food Facts. La clave de OpenRouter se guarda en el `localStorage` de tu navegador.
