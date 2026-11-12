@@ -201,6 +201,12 @@ main::-webkit-scrollbar{width:0}
 .sheet .type{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .sheet .type button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:600;color:#4A453D;cursor:pointer}
 .sheet .type button.on{background:var(--green);color:#fff;border-color:var(--green)}
+.sheet .who{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.sheet .who .whoLbl{font-size:10.5px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-right:2px}
+.sheet .who button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:600;color:#4A453D;cursor:pointer}
+.sheet .who button.on{background:var(--green);color:#fff;border-color:var(--green)}
+.meal .name[data-cpy]{cursor:pointer}
+.meal .name .cp{font-style:normal;color:#C3BCAF;font-size:11px;margin-left:5px}
 
 /* onboarding */
 .onbwrap{position:fixed;inset:0;z-index:80;display:none;background:var(--bg);overflow-y:auto}

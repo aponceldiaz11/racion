@@ -120,7 +120,7 @@ function renderHoy() {
     const lt = totals(list);
     html += `<div class="meal">
       <div class="t">
-        <div class="name"><span>${label}</span><span class="tm">${hhmm(list[0].ts)}</span></div>
+        <div class="name" data-cpy="${list.map(e => e.id).join(',')}" title="Copiar esta comida a otro perfil"><span>${label} <i class="cp">⧉</i></span><span class="tm">${hhmm(list[0].ts)}</span></div>
       </div>
       <div class="k">${round(lt.kcal)}<span class="g">kcal</span></div>
       <button class="del" data-del="${list.map(e => e.id).join(',')}" title="Borrar toda la comida">×</button>
@@ -146,6 +146,8 @@ function renderHoy() {
   });
   // cada alimento, por separado: tocar para editar o borrar solo ese
   box.querySelectorAll('[data-e]').forEach(b => b.onclick = () => openEntrySheet(Number(b.dataset.e)));
+  // tocar el nombre de la comida: copiarla a otro perfil
+  box.querySelectorAll('[data-cpy]').forEach(el => el.onclick = () => copyMealSheet(el.dataset.cpy.split(',').map(Number)));
 
   renderSuggest(rest);
   renderQuick();
@@ -321,12 +323,12 @@ function renderAjustes() {
 }
 
 /* ================= registro ================= */
-async function addEntries(items, tipo) {
+async function addEntries(items, tipo, pid = S.pid) {
   const ts = Date.now();
   for (const it of items) {
     const kcal = it.kcal100 * it.grams / 100;
     await db.put('log', {
-      pid: S.pid, ts, tipo, name: it.name, grams: round(it.grams),
+      pid, ts, tipo, name: it.name, grams: round(it.grams),
       kcal: round(kcal), prot: round(it.prot100 * it.grams / 100 * 10) / 10,
       fib: round(it.fib100 * it.grams / 100 * 10) / 10, source: it.source || 'manual'
     });
@@ -334,7 +336,7 @@ async function addEntries(items, tipo) {
   }
   await reload();
   const t = totals(items.map(i => ({ kcal: i.kcal100 * i.grams / 100, grams: i.grams })));
-  toast(`＋ ${round(t.kcal)} kcal · +${round(t.grams)} g`);
+  toast(`＋ ${round(t.kcal)} kcal · +${round(t.grams)} g${pid !== S.pid ? ' (otro perfil)' : ''}`);
 }
 
 async function learnFood(it) {
@@ -513,6 +515,7 @@ function addProposalSheet(items) {
     <h3>Confirmar</h3>
     <p class="hint">Corrige el nombre si no es ese alimento, o los gramos. Lo corregido se aprende para la próxima.</p>
     <div class="type" id="typeRow">${MEALS.map(([k, l]) => `<button data-type="${k}" class="${k === S.tipo ? 'on' : ''}">${l}</button>`).join('')}</div>
+    ${S.profiles.length > 1 ? `<div class="who" id="whoRow"><span class="whoLbl">Para</span>${S.profiles.map(p => `<button data-who="${p.id}" class="${p.id === S.pid ? 'on' : ''}">${escapeHtml(p.name)}</button>`).join('')}</div>` : ''}
     <div id="sheetItems"></div>
     <input class="search" id="platoName" placeholder="Guardar como plato (opcional: «desayuno de siempre»)" autocomplete="off">
     <div class="row"><button class="btn ghost" id="sheetCancel">Cancelar</button><button class="btn" id="sheetOk">Añadir</button></div>`;
@@ -602,13 +605,19 @@ function addProposalSheet(items) {
     $('#typeRow').querySelectorAll('button').forEach(x => x.classList.remove('on'));
     b.classList.add('on');
   });
+  // a quién se le apunta: yo por defecto, los demás se marcan
+  const who = $('#whoRow');
+  if (who) who.querySelectorAll('[data-who]').forEach(b => b.onclick = () => b.classList.toggle('on'));
   $('#sheetCancel').onclick = closeSheet;
   $('#sheetOk').onclick = async () => {
     const tipo = S.tipo;
     const name = $('#platoName').value.trim();
     const items = sheetItems.filter(i => i.grams > 0);
     if (!items.length) return closeSheet();
-    await addEntries(items, tipo);
+    const marked = [...document.querySelectorAll('#whoRow [data-who].on')].map(b => Number(b.dataset.who));
+    const targets = marked.length ? marked : [S.pid];
+    for (const pid of targets) await addEntries(items, tipo, pid);
+    if (targets.length > 1) toast(`Añadido a ${targets.length} perfiles`);
     if (items.length >= 2 || name) {
       const t = totals(items.map(i => ({ kcal: i.kcal100 * i.grams / 100, grams: i.grams, prot: i.prot100 * i.grams / 100, fib: i.fib100 * i.grams / 100 })));
       await db.put('platos', {
@@ -676,6 +685,36 @@ function openEntrySheet(id) {
 }
 
 function closeSheet() { $('#sheetwrap').classList.remove('on'); }
+
+/* ------- copiar una comida entera a otro perfil ------- */
+function copyMealSheet(ids) {
+  const list = S.log.filter(e => ids.includes(e.id));
+  const others = S.profiles.filter(p => p.id !== S.pid);
+  if (!list.length) return;
+  if (!others.length) { toast('Solo hay un perfil configurado'); return; }
+  const t = totals(list);
+  const sheet = $('#sheet');
+  sheet.innerHTML = `
+    <h3>Copiar comida</h3>
+    <p class="hint">${list.length} alimento(s) · ${round(t.kcal)} kcal. Elige a quién se la apunto igual.</p>
+    <div class="who" id="cpyWho">${others.map(p => `<button data-cp="${p.id}">${escapeHtml(p.name)}</button>`).join('')}</div>
+    <div class="row"><button class="btn ghost" id="cpyCancel">Cancelar</button><button class="btn" id="cpyOk">Copiar</button></div>`;
+  $('#cpyWho').querySelectorAll('[data-cp]').forEach(b => b.onclick = () => b.classList.toggle('on'));
+  $('#cpyCancel').onclick = closeSheet;
+  $('#cpyOk').onclick = async () => {
+    const pids = [...$('#cpyWho').querySelectorAll('.on')].map(b => Number(b.dataset.cp));
+    if (!pids.length) { toast('Marca al menos un perfil'); return; }
+    for (const pid of pids) {
+      for (const e of list) {
+        const { id, ...rest } = e;   // sin id: se crea una fila nueva
+        await db.put('log', { ...rest, pid });
+      }
+    }
+    await reload(); closeSheet();
+    toast(`Copiada a ${pids.map(p => (S.profiles.find(x => x.id === p) || {}).name).join(', ')}`);
+  };
+  $('#sheetwrap').classList.add('on');
+}
 
 /* ------- código de barras ------- */
 async function addByBarcode(code) {
