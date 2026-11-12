@@ -450,27 +450,55 @@ function parseLocal(text) {
 
 function looksLikeBarcode(t) { return /^\d{8,14}$/.test(t.replace(/\s/g, '')); }
 
+/* ------- indicador de espera ------- */
+let _thinkTimer = null, _thinkStart = 0, _busy = false;
+
+function showThinking(label) {
+  const box = $('#think'), t = $('#tsec'), l = $('#thinkTxt'), go = $('#go');
+  if (!box) return;
+  _thinkStart = Date.now();
+  if (l) l.textContent = label || 'Pensando';
+  box.hidden = false;
+  const tick = () => { if (t) t.textContent = Math.round((Date.now() - _thinkStart) / 1000) + ' s'; };
+  tick();
+  clearInterval(_thinkTimer);
+  _thinkTimer = setInterval(tick, 250);
+  if (go) go.disabled = true;
+}
+
+function hideThinking() {
+  clearInterval(_thinkTimer); _thinkTimer = null;
+  const box = $('#think'); if (box) box.hidden = true;
+  const go = $('#go'); if (go) go.disabled = false;
+}
+
 /* ------- flujo principal: enviar texto ------- */
 async function submitText(raw) {
   const text = raw.trim();
   if (!text) return;
   if (looksLikeBarcode(text)) return addByBarcode(text);
+  if (_busy) return;
+  _busy = true;
 
   // Con clave de IA manda la IA: entiende modificadores ("light", "de trigo", una
   // marca) y alimentos que no están en la base. La base local es el respaldo.
   if (aiKey()) {
-    $('#inp').value = ' lo estoy pensando…';
+    showThinking('Pensando qué has comido');
     try {
       const ai = await aiParseMeals(text, profile()?.name);
-      $('#inp').value = '';
       if (!ai.length) throw new Error('vacío');
+      hideThinking(); _busy = false;
+      $('#inp').value = '';
       return addProposalSheet(ai.map(x => ({ ...x, source: 'ia' })));
     } catch (e) {
-      $('#inp').value = '';
+      hideThinking(); _busy = false;
+      $('#inp').value = text;   // no se pierde lo que has escrito
       toast(e.code === 'SIN_CLAVE' ? 'Falta la clave en Ajustes' : `IA: ${e.detail || 'no disponible'} · uso la base`);
+      return addProposalSheet(parseLocal(text));
     }
   }
 
+  _busy = false;
   addProposalSheet(parseLocal(text));
 }
 
@@ -610,7 +638,7 @@ function closeSheet() { $('#sheetwrap').classList.remove('on'); }
 
 /* ------- código de barras ------- */
 async function addByBarcode(code) {
-  toast('Buscando el código…');
+  showThinking('Buscando el código');
   try {
     const p = await offLookup(code);
     if (!p) { toast('Ese código no está en Open Food Facts · añádelo a mano'); return; }
@@ -618,6 +646,7 @@ async function addByBarcode(code) {
     const serving = (p.serving && p.serving >= 20 && p.serving <= 150) ? p.serving : 100;
     addProposalSheet([{ name: p.brand ? `${p.name} (${p.brand})` : p.name, grams: serving, kcal100: p.kcal100, prot100: p.prot100, fib100: p.fib100, source: 'off', barcode: p.barcode }]);
   } catch (e) { toast('Sin conexión con Open Food Facts'); }
+  finally { hideThinking(); }
 }
 
 async function openScanner() {
