@@ -467,7 +467,7 @@ async function submitText(raw) {
       return addProposalSheet(ai.map(x => ({ ...x, source: 'ia' })));
     } catch (e) {
       $('#inp').value = '';
-      toast('IA no disponible · uso la base local');
+      toast(e.code === 'SIN_CLAVE' ? 'Falta la clave en Ajustes' : `IA: ${e.detail || 'no disponible'} · uso la base`);
     }
   }
 
@@ -760,12 +760,13 @@ function wireUI() {
     toast('Ajustes de IA guardados');
   };
   $('#testKey').onclick = async () => {
-    toast('Probando…');
+    toast('Probando de verdad…');
     try {
-      const r = await aiChat({ system: 'Responde solo JSON.', user: 'Devuelve {"ok":true}' });
-      toast('IA OK · ' + r.model);
+      // prueba real: el mismo prompt que se usa al registrar, no un "ok" de mentira
+      const items = await aiParseMeals('200 g de pollo y ensalada', profile()?.name || 'prueba');
+      toast(`IA OK · ${items.length} alimento(s) · ${items[0]?.name || ''} (${aiLastModel().split('/')[0]})`);
     } catch (e) {
-      toast(e.code === 'SIN_CLAVE' ? 'Falta la clave' : 'La IA no responde ahora mismo');
+      toast(e.code === 'SIN_CLAVE' ? 'Falta la clave' : `Falla: ${e.detail || e.message}`);
     }
   };
   $('#exportCsv').onclick = exportCsv;

@@ -1,17 +1,26 @@
 /* Ración — IA gratuita (OpenRouter) con rotación + Open Food Facts. */
 
-// Verificados el 2026-11-12 con la clave del proyecto (2,7 s / 4,8 s / 9,2 s).
-// Las listas :free caducan: si todo falla, se edita en Ajustes sin tocar código.
+// Verificados el 2026-11-12 con la clave del proyecto, y re-verificados con el
+// prompt real de alimentos: los dos primeros responden y respetan los nombres
+// ("queso light", "tortilla de trigo"). ernie devuelve contenido VACÍO con este
+// prompt (se gasta los tokens razonando) y los gemma están limitados por el
+// proveedor, así que van al final como último recurso.
 const AI_DEFAULT_MODELS = [
-  'baidu/ernie-5.5-flash-preview:free',
   'cohere/north-mini-code:free',
   'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'google/gemma-4-31b-it:free',
   'google/gemma-4-26b-a4b-it:free',
-  'google/gemma-4-31b-it:free'
+  'baidu/ernie-5.5-flash-preview:free'
 ];
 
-const AI_TIMEOUT = 14000;
+const AI_TIMEOUT = 22000;      // el modelo bueno tarda hasta ~17 s en frases largas
+const AI_MAX_TOKENS = 1200;
+const AI_BUDGET = 45000;       // no dejar al usuario esperando más que esto
+const AI_QUARANTINE = 10 * 60 * 1000;
 let _winner = null, _winnerAt = 0;
+const _bad = new Map();        // modelo -> momento en que falló
+
+function aiLastModel() { return _winner; }
 
 function aiKey() { return localStorage.getItem('racion_key') || ''; }
 function aiModels() {
@@ -23,10 +32,17 @@ async function aiChat({ system, user, temperature = 0.2, json = true }) {
   const key = aiKey();
   if (!key) { const e = new Error('SIN_CLAVE'); e.code = 'SIN_CLAVE'; throw e; }
   const models = aiModels();
-  const order = (_winner && Date.now() - _winnerAt < 5 * 60 * 1000 && models.includes(_winner))
-    ? [_winner, ...models.filter(m => m !== _winner)] : models;
-  let lastErr = null;
-  for (const model of order) {
+  // orden: ganador reciente, luego los que no están en cuarentena, luego el resto
+  const now = Date.now();
+  const fresh = models.filter(m => !_bad.has(m) || now - _bad.get(m) > AI_QUARANTINE);
+  const ordered = (_winner && now - _winnerAt < 5 * 60 * 1000 && fresh.includes(_winner))
+    ? [_winner, ...fresh.filter(m => m !== _winner), ...models.filter(m => !fresh.includes(m))]
+    : [...fresh, ...models.filter(m => !fresh.includes(m))];
+
+  const started = Date.now();
+  const fails = [];
+  for (const model of ordered) {
+    if (Date.now() - started > AI_BUDGET) { fails.push('tiempo agotado'); break; }
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), AI_TIMEOUT);
     try {
@@ -42,26 +58,37 @@ async function aiChat({ system, user, temperature = 0.2, json = true }) {
         body: JSON.stringify({
           model,
           temperature,
-          max_tokens: 900,
+          max_tokens: AI_MAX_TOKENS,
           messages: [{ role: 'system', content: system }, { role: 'user', content: user }]
           // sin response_format: varios modelos free devuelven contenido vacío si se les exige
         })
       });
       clearTimeout(t);
-      if (!r.ok) { lastErr = new Error('HTTP ' + r.status); continue; }
+      if (!r.ok) {
+        _bad.set(model, Date.now());
+        fails.push(`${model.split('/')[0]} HTTP ${r.status}`);
+        continue;
+      }
       const data = await r.json();
-      const txt = data?.choices?.[0]?.message?.content;
-      if (!txt) { lastErr = new Error('respuesta vacía'); continue; }
+      const choice = (data?.choices || [{}])[0];
+      const txt = choice?.message?.content;
+      if (!txt || !String(txt).trim()) {
+        _bad.set(model, Date.now());
+        fails.push(`${model.split('/')[0]} vacío${choice?.finish_reason === 'length' ? ' (tokens)' : ''}`);
+        continue;
+      }
       _winner = model; _winnerAt = Date.now();
+      _bad.delete(model);
       return { text: txt, model };
     } catch (e) {
       clearTimeout(t);
-      lastErr = e;
+      _bad.set(model, Date.now());
+      fails.push(`${model.split('/')[0]} ${e.name === 'AbortError' ? 'lento' : 'error'}`);
     }
   }
   const e = new Error('IA_NO_DISPONIBLE');
   e.code = 'IA_NO_DISPONIBLE';
-  e.cause = lastErr;
+  e.detail = fails.slice(0, 3).join(' · ') || 'sin modelos';
   throw e;
 }
 
