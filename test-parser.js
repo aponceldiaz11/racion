@@ -115,3 +115,21 @@ for (const [from, to, want] of renames) {
   console.log(`  "${from}" -> "${to}": ${r.name} ${r.kcal100} kcal/100 [${r.est ? 'est' : 'base'}] ${ok ? 'OK' : 'ESPERABA ' + want}`);
 }
 console.log(bad === 0 ? 'OK renombrado' : `FALLAN ${bad} renombrados`);
+
+/* ---- no "secuestrar": frases concretas que antes caían en otro alimento ---- */
+const mustNot = [
+  ['una loncha de queso light', 'queso fresco'],
+  ['loncha de queso light', 'queso fresco'],
+  ['una tortilla de trigo', 'tortilla de patatas'],
+  ['tortilla de trigo integral', 'tortilla de patatas'],
+  ['queso light en lonchas', 'queso fresco']
+];
+let robos = 0;
+for (const [t, malo] of mustNot) {
+  const out = resolve(t);
+  const nombres = out.map(o => o.name).join(' | ');
+  const ok = !out.some(o => o.name === malo) && out.every(o => o.kcal100 > 0);
+  if (!ok) robos++;
+  console.log(`  "${t}" -> ${nombres} (${out.map(o => o.kcal100).join('/')} kcal/100) ${ok ? 'OK' : 'MAL: no debía ser ' + malo}`);
+}
+console.log(robos === 0 ? 'OK sin secuestros' : `FALLAN ${robos} secuestros`);

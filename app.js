@@ -121,10 +121,15 @@ function renderHoy() {
     html += `<div class="meal">
       <div class="t">
         <div class="name"><span>${label}</span><span class="tm">${hhmm(list[0].ts)}</span></div>
-        <div class="items">${list.map(e => `<b>${escapeHtml(e.name)}</b> ${round(e.grams)} g`).join(' · ')}</div>
       </div>
       <div class="k">${round(lt.kcal)}<span class="g">kcal</span></div>
-      <button class="del" data-del="${list.map(e => e.id).join(',')}" title="Borrar">×</button>
+      <button class="del" data-del="${list.map(e => e.id).join(',')}" title="Borrar toda la comida">×</button>
+      <div class="erows">${list.map(e => `
+        <button class="erow" data-e="${e.id}" title="Tocar para corregir o borrar">
+          <span class="en">${escapeHtml(e.name)}</span>
+          <span class="eg">${round(e.grams)} g</span>
+          <span class="ek">${round(e.kcal)}</span>
+        </button>`).join('')}</div>
     </div>`;
   }
   const pend = MEALS.find(([k]) => !entries.some(e => e.tipo === k));
@@ -135,9 +140,12 @@ function renderHoy() {
   if (!entries.length) html += `<div class="empty">Aún no hay nada hoy.<br>Escribe o dicta lo primero — o toca un habitual.</div>`;
   box.innerHTML = html;
   box.querySelectorAll('.del').forEach(b => b.onclick = async () => {
+    if (!confirm('¿Borrar esta comida entera?')) return;
     for (const id of b.dataset.del.split(',').map(Number)) await db.del('log', id);
     await reload(); toast('Borrado');
   });
+  // cada alimento, por separado: tocar para editar o borrar solo ese
+  box.querySelectorAll('[data-e]').forEach(b => b.onclick = () => openEntrySheet(Number(b.dataset.e)));
 
   renderSuggest(rest);
   renderQuick();
@@ -448,27 +456,22 @@ async function submitText(raw) {
   if (!text) return;
   if (looksLikeBarcode(text)) return addByBarcode(text);
 
-  const local = parseLocal(text);
-  const needsAi = local.some(x => x.est || x.unknown || !x.kcal100);
-  const hasKey = !!aiKey();
-
-  // Todo resuelto por la base: no hace falta IA
-  if (!needsAi) return addProposalSheet(local);
-
-  // Sin clave: se registra igual con la estimación local (marcada como ≈)
-  if (!hasKey) return addProposalSheet(local);
-
-  $('#inp').value = ' lo estoy pensando…';
-  try {
-    const ai = await aiParseMeals(text, profile()?.name);
-    $('#inp').value = '';
-    if (!ai.length) throw new Error('vacío');
-    addProposalSheet(ai.map(x => ({ ...x, source: 'ia' })));
-  } catch (e) {
-    $('#inp').value = '';
-    toast('La IA no está disponible · se registra a mano');
-    addProposalSheet(local);
+  // Con clave de IA manda la IA: entiende modificadores ("light", "de trigo", una
+  // marca) y alimentos que no están en la base. La base local es el respaldo.
+  if (aiKey()) {
+    $('#inp').value = ' lo estoy pensando…';
+    try {
+      const ai = await aiParseMeals(text, profile()?.name);
+      $('#inp').value = '';
+      if (!ai.length) throw new Error('vacío');
+      return addProposalSheet(ai.map(x => ({ ...x, source: 'ia' })));
+    } catch (e) {
+      $('#inp').value = '';
+      toast('IA no disponible · uso la base local');
+    }
   }
+
+  addProposalSheet(parseLocal(text));
 }
 
 /* ------- hoja de confirmación ------- */
@@ -555,6 +558,52 @@ function addProposalSheet(items) {
     closeSheet();
   };
   wrap.classList.add('on');
+}
+
+/* ------- corregir / borrar un alimento ya registrado ------- */
+function openEntrySheet(id) {
+  const e = S.log.find(x => x.id === id);
+  if (!e) return;
+  const sheet = $('#sheet');
+  sheet.innerHTML = `
+    <h3>Corregir alimento</h3>
+    <p class="hint">Cambia el nombre o los gramos y se recalcula. «Borrar» quita solo este alimento.</p>
+    <div class="form">
+      <label>Alimento<input id="edName" value="${escapeHtml(e.name)}" autocomplete="off" spellcheck="false"></label>
+      <label>Gramos<input type="number" inputmode="numeric" id="edG" value="${round(e.grams)}" min="1"></label>
+    </div>
+    <p class="hint" id="edPrev"></p>
+    <div class="row">
+      <button class="btn ghost" id="edCancel">Cancelar</button>
+      <button class="btn ghost" id="edDel" style="color:#B4462F">Borrar</button>
+      <button class="btn" id="edSave">Guardar</button>
+    </div>`;
+  const preview = () => {
+    const r = resolveName($('#edName').value.trim() || e.name);
+    const g = Math.max(1, Number($('#edG').value) || e.grams);
+    $('#edPrev').textContent = `${r.name} · ${round(r.kcal100 * g / 100)} kcal · ${r.est ? 'valor estimado' : 'valor de la base'}`;
+  };
+  $('#edName').oninput = preview;
+  $('#edG').oninput = preview;
+  preview();
+  $('#edCancel').onclick = closeSheet;
+  $('#edDel').onclick = async () => {
+    if (!confirm(`¿Borrar "${e.name}"?`)) return;
+    await db.del('log', e.id); await reload(); closeSheet(); toast('Borrado');
+  };
+  $('#edSave').onclick = async () => {
+    const r = resolveName($('#edName').value.trim() || e.name);
+    const g = Math.max(1, Number($('#edG').value) || e.grams);
+    await db.put('log', {
+      ...e, name: r.name, grams: round(g),
+      kcal: round(r.kcal100 * g / 100),
+      prot: round(r.prot100 * g / 100 * 10) / 10,
+      fib: round(r.fib100 * g / 100 * 10) / 10,
+      source: r.source
+    });
+    await reload(); closeSheet(); toast('Corregido');
+  };
+  $('#sheetwrap').classList.add('on');
 }
 
 function closeSheet() { $('#sheetwrap').classList.remove('on'); }

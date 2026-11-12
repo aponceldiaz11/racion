@@ -17,6 +17,8 @@ const SEED_FOODS = [
   ['queso azul', 350, 21, 0, 30, 'porción', 'queso azul', 'roquefort', 'cabrales', 'azul'],
   ['queso rallado', 380, 25, 0, 20, 'cucharada', 'queso rallado', 'rallado'],
   ['queso de untar', 250, 6, 0, 15, 'cucharada', 'queso untar', 'filadelfia'],
+  ['queso light', 180, 22, 0, 20, 'loncha', 'queso light', 'queso desnatado', 'queso 0'],
+  ['tortilla de trigo', 300, 8, 2, 60, 'unidad', 'tortilla de trigo', 'wrap', 'fajita', 'tortilla de maiz'],
   ['mantequilla', 717, 0.9, 0, 10, 'porción', 'mantequilla'],
   ['mermelada', 250, 0.4, 1, 20, 'cucharada', 'mermelada', 'confitura'],
   ['cereales de desayuno', 380, 8, 4, 40, 'ración', 'cereales', 'corn flakes', 'muesli', 'granola'],
@@ -193,13 +195,31 @@ const norm = s => (s || '').toString().toLowerCase()
 const stem = w => (w.length > 4 ? w.replace(/(es|s)$/, '') : w);
 const tokens = s => norm(s).split(' ').filter(Boolean).map(stem);
 
+/* Palabras que no identifican el alimento: cantidad, unidad, cocina o relleno.
+   Se excluyen al medir si un alimento de la base "cubre" lo que ha escrito el usuario. */
+const NO_KEYWORDS = new Set([
+  'loncha', 'lonchas', 'rebanada', 'rebanadas', 'cucharada', 'cucharadas', 'cuchara',
+  'vaso', 'vasos', 'taza', 'tazas', 'lata', 'latas', 'punado', 'punados', 'racion',
+  'raciones', 'plato', 'platos', 'unidad', 'unidades', 'gr', 'gramo', 'gramos', 'kg',
+  'ml', 'porcion', 'porciones', 'cazo', 'cazos',
+  'plancha', 'horno', 'asado', 'asada', 'frito', 'frita', 'cocido', 'cocida', 'hervido',
+  'revuelto', 'revueltos', 'natural', 'crudo', 'casero', 'pack'
+]);
+
+const qKeywords = qTok => {
+  const ks = qTok.filter(t => t.length >= 3 && !NO_KEYWORDS.has(t));
+  return ks.length ? ks : qTok.filter(t => t.length >= 3);
+};
+
 function matchFood(query, items) {
   const qTok = tokens(query);
   if (!qTok.length) return null;
   const qStr = ' ' + qTok.join(' ') + ' ';
-  let best = null, bestScore = 0;
+  const qKey = qKeywords(qTok);          // lo que de verdad define el alimento
+  let best = null, bestScore = 0, bestItemToks = null;
   for (const it of items) {
     const names = [it.name, ...(it.aliases || [])];
+    const itemToks = new Set(names.flatMap(n => tokens(n)));
     for (const n of names) {
       const nTok = tokens(n);
       if (!nTok.length) continue;
@@ -215,10 +235,18 @@ function matchFood(query, items) {
       // si el nombre completo del alimento aparece tal cual en el texto, es ESE
       // (evita que un alias genérico como "pan" gane a "pan de molde")
       if (n === it.name && qStr.includes(' ' + nTok.join(' ') + ' ')) score += 4;
-      if (score > bestScore) { bestScore = score; best = it; }
+      if (score > bestScore) { bestScore = score; best = it; bestItemToks = itemToks; }
     }
   }
-  return bestScore >= 1.2 ? { item: best, score: bestScore } : null;
+  if (bestScore < 1.2 || !best) return null;
+  // Rechazo por especificidad: si el usuario dijo más cosas de las que el alimento
+  // explica ("queso light" vs "queso fresco", "tortilla de trigo" vs "de patatas"),
+  // el parecido es una trampa y es mejor estimarlo que colar otro alimento.
+  if (qKey.length >= 2) {
+    const covered = qKey.filter(t => bestItemToks.has(t)).length / qKey.length;
+    if (covered < 0.6) return null;
+  }
+  return { item: best, score: bestScore };
 }
 
 /* ---------- estimador: nunca decir "no sé" ----------
@@ -235,12 +263,14 @@ const EST_RULES = [
   [/pate|foie/, 'paté', 320, 12, 0, 20, 'porción'],
   [/queso (curado|manchego|viejo|parmesano)/, 'queso curado', 400, 26, 0, 30, 'loncha'],
   [/queso (rallado|semicurado|gouda|emmental|azul|roquefort)/, 'queso semicurado', 350, 23, 0, 30, 'porción'],
+  [/queso (light|desnatado|0 ?%)/, 'queso light', 180, 22, 0, 20, 'loncha'],
   [/queso (untar|crema|philadelphia|batido)/, 'queso de untar', 250, 6, 0, 15, 'cucharada'],
   [/queso/, 'queso', 300, 20, 0, 40, 'porción'],
   [/mantequilla|margarina/, 'mantequilla', 717, 1, 0, 10, 'porción'],
   [/mermelada|confitura|miel|sirope|azucar|sacarina/, 'mermelada', 260, 0.5, 1, 20, 'cucharada'],
   [/cereal|copos de maiz|corn flakes|muesli|granola|avena/, 'cereales', 380, 8, 4, 40, 'ración'],
   [/magdalena|bizcocho|bollo|dona|donut|tarta|pastel|galleta|croissant|cruasan|napolitana/, 'bollería', 430, 6, 1, 40, 'unidad'],
+  [/tortilla de trigo|tortilla de maiz|wrap|fajita|burrito/, 'tortilla de trigo', 300, 8, 2, 60, 'unidad'],
   [/tortilla francesa/, 'tortilla francesa', 190, 12, 0, 120, 'ración'],
   [/tortilla/, 'tortilla de patatas', 190, 7, 1.5, 150, 'ración'],
   [/patatas? fritas|chips/, 'patatas fritas', 500, 6, 4, 30, 'ración'],

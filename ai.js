@@ -86,7 +86,16 @@ Reglas:
 - kcal100/prot100/fib100 son por 100 g del alimento en crudo o tal cual se come (cocido si lo dice).
 - Si es un plato compuesto (paella, lentejas con chorizo, pizza), estima el conjunto como un solo item.
 - Si menciona aceite, pan o bebidas, inclúyelos como items propios.
-- Máximo 8 items. No añadas texto fuera del JSON. Si no entiendes algo, estima con sentido común.`;
+- Máximo 8 items. No añadas texto fuera del JSON. Si no entiendes algo, estima con sentido común.
+MUY IMPORTANTE, el nombre manda:
+- Usa el nombre EXACTO que dice la persona. No lo sustituyas por otro alimento parecido.
+  "queso light" NO es "queso fresco"; "tortilla de trigo" es un wrap, NO una tortilla de patatas;
+  "pan de centeno" NO es "pan integral".
+- Los modificadores cambian el valor: light / 0% / desnatado, integral, de trigo o de maíz,
+  frito o a la plancha, con o sin azúcar. Aplícalos al valor por 100 g.
+- Si el alimento no existe en ninguna tabla, estímalo con valores reales de su categoría,
+  pero conserva el nombre que ha dicho la persona.
+- Ante la duda entre dos alimentos distintos, elige el que la persona ha nombrado, no el más común.`;
 
 async function aiParseMeals(text, profileName) {
   const { text: out, model } = await aiChat({
