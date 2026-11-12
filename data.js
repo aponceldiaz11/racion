@@ -19,6 +19,7 @@ const SEED_FOODS = [
   ['queso de untar', 250, 6, 0, 15, 'cucharada', 'queso untar', 'filadelfia'],
   ['queso light', 180, 22, 0, 20, 'loncha', 'queso light', 'queso desnatado', 'queso 0'],
   ['tortilla de trigo', 300, 8, 2, 60, 'unidad', 'tortilla de trigo', 'wrap', 'fajita', 'tortilla de maiz'],
+  ['burrito', 220, 12, 3, 200, 'unidad', 'burrito', 'burritos'],
   ['mantequilla', 717, 0.9, 0, 10, 'porción', 'mantequilla'],
   ['mermelada', 250, 0.4, 1, 20, 'cucharada', 'mermelada', 'confitura'],
   ['cereales de desayuno', 380, 8, 4, 40, 'ración', 'cereales', 'corn flakes', 'muesli', 'granola'],
@@ -203,7 +204,10 @@ const NO_KEYWORDS = new Set([
   'raciones', 'plato', 'platos', 'unidad', 'unidades', 'gr', 'gramo', 'gramos', 'kg',
   'ml', 'porcion', 'porciones', 'cazo', 'cazos',
   'plancha', 'horno', 'asado', 'asada', 'frito', 'frita', 'cocido', 'cocida', 'hervido',
-  'revuelto', 'revueltos', 'natural', 'crudo', 'casero', 'pack'
+  'revuelto', 'revueltos', 'natural', 'crudo', 'casero', 'pack',
+  // números y artículos: no identifican el alimento
+  'un', 'una', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho',
+  'nueve', 'diez', 'once', 'doce', 'medio', 'media', 'par', 'docena'
 ]);
 
 const qKeywords = qTok => {
@@ -270,7 +274,8 @@ const EST_RULES = [
   [/mermelada|confitura|miel|sirope|azucar|sacarina/, 'mermelada', 260, 0.5, 1, 20, 'cucharada'],
   [/cereal|copos de maiz|corn flakes|muesli|granola|avena/, 'cereales', 380, 8, 4, 40, 'ración'],
   [/magdalena|bizcocho|bollo|dona|donut|tarta|pastel|galleta|croissant|cruasan|napolitana/, 'bollería', 430, 6, 1, 40, 'unidad'],
-  [/tortilla de trigo|tortilla de maiz|wrap|fajita|burrito/, 'tortilla de trigo', 300, 8, 2, 60, 'unidad'],
+  [/burrito/, 'burrito', 220, 12, 3, 200, 'unidad'],
+  [/tortilla de trigo|tortilla de maiz|wrap|fajita/, 'tortilla de trigo', 300, 8, 2, 60, 'unidad'],
   [/tortilla francesa/, 'tortilla francesa', 190, 12, 0, 120, 'ración'],
   [/tortilla/, 'tortilla de patatas', 190, 7, 1.5, 150, 'ración'],
   [/patatas? fritas|chips/, 'patatas fritas', 500, 6, 4, 30, 'ración'],

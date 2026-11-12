@@ -78,7 +78,10 @@ const tests = [
   'una magdalena',
   'un plato de sopa de verduras',
   'una onza de chocolate negro',
-  'dos cañas de cerveza'
+  'dos cañas de cerveza',
+  'dos burritos',
+  '3 burritos',
+  'un burrito de pollo'
 ];
 
 let sinKcal = 0;

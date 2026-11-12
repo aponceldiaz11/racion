@@ -191,6 +191,11 @@ main::-webkit-scrollbar{width:0}
 .sheet .itm .nm input.nmEdit:focus{outline:0;border-bottom-color:var(--line)}
 .sheet .itm input{width:74px;border:1px solid var(--line);border-radius:9px;padding:7px 8px;text-align:right;font-size:14px;font-variant-numeric:tabular-nums}
 .sheet .itm .u{font-size:11px;color:var(--muted)}
+.sheet .itm .qty{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:#FCFBF8;overflow:hidden}
+.sheet .itm .qty button.step{width:26px;height:34px;border:0;background:transparent;color:#7A7368;font-size:16px;font-weight:700;line-height:1;cursor:pointer;padding:0}
+.sheet .itm .qty button.step:active{background:#F1EEE6}
+.sheet .itm .qty input{width:44px;border:0;background:transparent;text-align:center;padding:6px 0;font-size:13.5px;font-variant-numeric:tabular-nums}
+.sheet .itm .mult{font-size:10px;font-weight:800;color:var(--green);background:var(--green-soft);border-radius:4px;padding:1px 4px;margin-left:5px}
 .sheet .row{display:flex;gap:8px;margin-top:10px}
 .sheet .row .btn{flex:1}
 .sheet .type{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}

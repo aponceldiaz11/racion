@@ -489,7 +489,7 @@ async function submitText(raw) {
       if (!ai.length) throw new Error('vacío');
       hideThinking(); _busy = false;
       $('#inp').value = '';
-      return addProposalSheet(ai.map(x => ({ ...x, source: 'ia' })));
+      return addProposalSheet(ai.map(x => ({ ...x, source: 'ia', unitGrams: x.grams })));
     } catch (e) {
       hideThinking(); _busy = false;
       $('#inp').value = text;   // no se pierde lo que has escrito
@@ -519,19 +519,52 @@ function addProposalSheet(items) {
   const badgeFor = i => i.source === 'ia' ? ' <span class="src ia">IA</span>'
     : i.source === 'off' ? ' <span class="src off">OFF</span>'
     : i.est ? ' <span class="src est">≈ est</span>' : '';
+  const unitOf = i => Math.round((i.unitGrams && i.unitGrams > 0) ? i.unitGrams : i.grams) || 1;
+  const multOf = i => {
+    if (!i.unitGrams) return '';
+    const n = i.grams / i.unitGrams;
+    if (n >= 1.999 && Math.abs(n - Math.round(n)) < 0.03) return '×' + Math.round(n);
+    return '';
+  };
   const paint = () => {
     $('#sheetItems').innerHTML = sheetItems.map((i, ix) => `
       <div class="itm">
         <div class="nm">
           <input class="nmEdit" data-n="${ix}" value="${escapeHtml(i.name)}" autocomplete="off" spellcheck="false">
-          <div><span class="u" data-u="${ix}">${i.kcal100 ? i.kcal100 + ' kcal/100 g' : 'sin datos — pon kcal'}</span><span data-b="${ix}">${badgeFor(i)}</span></div>
+          <div><span class="u" data-u="${ix}">${i.kcal100 ? i.kcal100 + ' kcal/100 g' : 'sin datos — pon kcal'}</span><span data-b="${ix}">${badgeFor(i)}</span><span class="mult" data-m="${ix}">${multOf(i)}</span></div>
         </div>
-        <input type="number" inputmode="numeric" value="${round(i.grams)}" data-g="${ix}">
+        <div class="qty">
+          <button class="step" data-minus="${ix}" aria-label="quitar una ración">−</button>
+          <input type="number" inputmode="numeric" value="${round(i.grams)}" data-g="${ix}">
+          <button class="step" data-plus="${ix}" aria-label="añadir una ración">+</button>
+        </div>
         <span class="u">g</span>
         <button class="del" data-rm="${ix}" style="border:0;background:transparent;color:#C3BCAF;font-size:16px">×</button>
       </div>`).join('');
+    const syncRow = ix => {
+      const i = sheetItems[ix];
+      const g = $(`#sheetItems [data-g="${ix}"]`);
+      if (g) g.value = round(i.grams);
+      const m = $(`#sheetItems [data-m="${ix}"]`);
+      if (m) m.textContent = multOf(i);
+    };
     $('#sheetItems').querySelectorAll('[data-g]').forEach(inp => inp.onchange = () => {
-      sheetItems[Number(inp.dataset.g)].grams = Math.max(1, Number(inp.value) || 1);
+      const ix = Number(inp.dataset.g);
+      sheetItems[ix].grams = Math.max(1, Number(inp.value) || 1);
+      syncRow(ix);
+    });
+    // una ración más / menos por toque: "dos burritos" en un toque
+    $('#sheetItems').querySelectorAll('[data-plus]').forEach(b => b.onclick = () => {
+      const ix = Number(b.dataset.plus);
+      sheetItems[ix].grams = Math.max(1, round(sheetItems[ix].grams + unitOf(sheetItems[ix])));
+      syncRow(ix);
+    });
+    $('#sheetItems').querySelectorAll('[data-minus]').forEach(b => b.onclick = () => {
+      const ix = Number(b.dataset.minus);
+      const i = sheetItems[ix];
+      const u = unitOf(i);
+      i.grams = i.grams - u >= 1 ? round(i.grams - u) : Math.max(1, round(i.grams / 2));
+      syncRow(ix);
     });
     // Corregir el nombre de un alimento sin salir de la hoja
     $('#sheetItems').querySelectorAll('[data-n]').forEach(inp => {
@@ -554,6 +587,8 @@ function addProposalSheet(items) {
         if (u) u.textContent = old.kcal100 ? old.kcal100 + ' kcal/100 g' : 'sin datos — pon kcal';
         const b = $(`#sheetItems [data-b="${ix}"]`);
         if (b) b.innerHTML = badgeFor(old);
+        const mm = $(`#sheetItems [data-m="${ix}"]`);
+        if (mm) mm.textContent = multOf(old);
       };
     });
     $('#sheetItems').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
@@ -599,6 +634,10 @@ function openEntrySheet(id) {
     <div class="form">
       <label>Alimento<input id="edName" value="${escapeHtml(e.name)}" autocomplete="off" spellcheck="false"></label>
       <label>Gramos<input type="number" inputmode="numeric" id="edG" value="${round(e.grams)}" min="1"></label>
+      <div class="two">
+        <button class="btn ghost" id="edHalf" type="button">÷ 2</button>
+        <button class="btn ghost" id="edDouble" type="button">× 2</button>
+      </div>
     </div>
     <p class="hint" id="edPrev"></p>
     <div class="row">
@@ -613,6 +652,8 @@ function openEntrySheet(id) {
   };
   $('#edName').oninput = preview;
   $('#edG').oninput = preview;
+  $('#edDouble').onclick = () => { const g = $('#edG'); g.value = Math.max(1, round((Number(g.value) || e.grams) * 2)); preview(); };
+  $('#edHalf').onclick = () => { const g = $('#edG'); g.value = Math.max(1, round((Number(g.value) || e.grams) / 2)); preview(); };
   preview();
   $('#edCancel').onclick = closeSheet;
   $('#edDel').onclick = async () => {
