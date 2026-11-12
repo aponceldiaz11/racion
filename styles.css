@@ -56,6 +56,9 @@ main::-webkit-scrollbar{width:0}
 .heroinfo .row span:first-child{color:var(--muted)}
 .heroinfo .row span:last-child{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
 .chip{display:inline-block;background:var(--green-soft);color:var(--green);font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px}
+#hObjRow{cursor:pointer}
+#hObjRow span:last-child{border-bottom:1px dashed #D8D1C2}
+.ovr{font-style:normal;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--green);background:var(--green-soft);border-radius:4px;padding:1px 4px;margin-left:4px;vertical-align:1px}
 
 .macros{display:flex;gap:8px;margin:10px 0 4px}
 .macro{flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:9px 10px}

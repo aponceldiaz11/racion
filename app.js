@@ -57,8 +57,22 @@ async function reload() {
   S.items = await db.all('items');
   S.platos = await db.all('platos');
   S.log = await db.all('log');
+  S.meta = await db.all('meta');
   renderAll();
 }
+
+/* ---------- objetivo puntual de un día ----------
+   Se guarda como meta `obj:<pid>:<día>` y NO toca el objetivo por defecto.
+   Sirve para "hoy juego al pádel, hoy como 400 más". */
+const objKey = (pid, day) => `obj:${pid}:${day}`;
+function targetFor(p = profile(), day = dayKey(Date.now())) {
+  if (!p) return 0;
+  const rec = (S.meta || []).find(m => m.k === objKey(p.id, day));
+  const v = rec ? Number(rec.v) : 0;
+  return v > 0 ? v : p.kcalTarget;
+}
+const hasOverride = (p = profile(), day = dayKey(Date.now())) =>
+  !!(S.meta || []).some(m => m.k === objKey(p.id, day) && Number(m.v) > 0);
 
 /* ================= cálculos ================= */
 const profile = () => S.profiles.find(p => p.id === S.pid);
@@ -90,10 +104,11 @@ function renderHoy() {
   const p = profile(); if (!p) return;
   const entries = logOf();
   const t = totals(entries);
-  const rest = round(p.kcalTarget - t.kcal);
+  const target = targetFor(p);
+  const rest = round(target - t.kcal);
 
   $('#rest').textContent = rest;
-  $('#hObj').textContent = p.kcalTarget;
+  $('#hObj').innerHTML = target + (hasOverride(p) ? ' <i class="ovr">hoy</i>' : '');
   $('#hEat').textContent = round(t.kcal);
   $('#hDens').textContent = t.kcal > 0 ? round(t.g / (t.kcal / 100)) : 0;
   const st = $('#hState');
@@ -102,7 +117,7 @@ function renderHoy() {
   st.style.color = rest < 0 ? 'var(--red)' : rest < 250 ? '#A8701B' : 'var(--green)';
 
   const arc = $('#arc'), C = 2 * Math.PI * 50;
-  const frac = Math.min(1, t.kcal / p.kcalTarget);
+  const frac = Math.min(1, t.kcal / target);
   arc.setAttribute('stroke-dashoffset', C * (1 - frac));
   arc.setAttribute('stroke', rest < 0 ? 'var(--red)' : 'var(--amber)');
 
@@ -151,6 +166,42 @@ function renderHoy() {
 
   renderSuggest(rest);
   renderQuick();
+  const objRow = $('#hObjRow');
+  if (objRow) objRow.onclick = openTargetSheet;
+}
+
+/* ------- objetivo puntual de hoy ------- */
+function openTargetSheet() {
+  const p = profile(); if (!p) return;
+  const day = dayKey(Date.now());
+  const cur = targetFor(p, day);
+  const isOv = hasOverride(p, day);
+  const sheet = $('#sheet');
+  sheet.innerHTML = `
+    <h3>Objetivo de hoy</h3>
+    <p class="hint">Solo para hoy. Tu objetivo por defecto (${p.kcalTarget} kcal) se queda igual.</p>
+    <div class="form"><label>kcal para hoy<input type="number" inputmode="numeric" id="ovVal" value="${cur}" min="800"></label></div>
+    <div class="type" id="ovQuick">${[200, 300, 500].map(n => `<button data-add="${n}">+${n}</button>`).join('')}</div>
+    <div class="row">
+      ${isOv ? '<button class="btn ghost" id="ovClear">Quitar</button>' : ''}
+      <button class="btn ghost" id="ovCancel">Cancelar</button>
+      <button class="btn" id="ovSave">Guardar</button>
+    </div>`;
+  const val = () => Math.max(800, Number($('#ovVal').value) || cur);
+  $('#ovQuick').querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
+    $('#ovVal').value = Math.round(val() + Number(b.dataset.add));
+  });
+  $('#ovCancel').onclick = closeSheet;
+  if ($('#ovClear')) $('#ovClear').onclick = async () => {
+    await db.del('meta', objKey(p.id, day)); await reload(); closeSheet();
+    toast(`Objetivo de hoy quitado · vuelve a ${p.kcalTarget}`);
+  };
+  $('#ovSave').onclick = async () => {
+    const v = Math.round(val());
+    await db.meta(objKey(p.id, day), v);
+    await reload(); closeSheet(); toast(`Hoy: ${v} kcal`);
+  };
+  $('#sheetwrap').classList.add('on');
 }
 
 function renderSuggest(rest) {
@@ -232,23 +283,23 @@ function renderSemana() {
     const d = new Date(); d.setDate(d.getDate() - i);
     const key = dayKey(d.getTime());
     const t = totals(S.log.filter(e => e.pid === S.pid && dayKey(e.ts) === key));
-    days.push({ key, label: d.toLocaleDateString('es-ES', { weekday: 'narrow' }), k: round(t.kcal), g: round(t.g), today: i === 0 });
+    days.push({ key, label: d.toLocaleDateString('es-ES', { weekday: 'narrow' }), k: round(t.kcal), g: round(t.g), today: i === 0, tg: targetFor(p, key) });
   }
   const target = p.kcalTarget;
-  const max = Math.max(target, ...days.map(d => d.k)) || target;
+  const max = Math.max(target, ...days.map(d => Math.max(d.k, d.tg))) || target;
   $('#weekSub').textContent = `kcal por día · objetivo ${target}`;
   $('#bars').innerHTML = days.map(d => {
     const h = Math.max(2, round(d.k / max * 100));
-    return `<div class="bar ${d.k > target ? 'over' : ''} ${d.today ? 'today' : ''}">
+    return `<div class="bar ${d.k > d.tg ? 'over' : ''} ${d.today ? 'today' : ''}">
       <div class="kv">${d.k || ''}</div>
       <div class="fill" style="height:${h}%"></div>
       <div class="cap">${d.label}</div></div>`;
   }).join('') + `<div class="goalline" style="bottom:${round(target / max * 100)}%"><b>${target}</b></div>`;
 
   const logged = days.filter(d => d.k > 0);
-  const inGoal = logged.filter(d => d.k <= target * 1.02).length;
+  const inGoal = logged.filter(d => d.k <= d.tg * 1.02).length;
   const avg = logged.length ? round(logged.reduce((a, d) => a + d.k, 0) / logged.length) : 0;
-  const balance = logged.reduce((a, d) => a + d.k - target, 0);
+  const balance = logged.reduce((a, d) => a + d.k - d.tg, 0);
   const density = logged.length ? round(logged.reduce((a, d) => a + d.g, 0) / Math.max(1, logged.reduce((a, d) => a + d.k, 0) / 100)) : 0;
 
   $('#weekKpis').innerHTML = `
